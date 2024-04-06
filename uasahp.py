@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from io import StringIO
 import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 st.markdown(
     """
@@ -55,6 +57,81 @@ def consistency_ratio(priority_index, ahp_df):
     else:
         print('The model is not consistent')
     return consistency_index, consistency_ratio
+
+#Fungsi untuk Input AHP Dhafina's Version
+def create_comparison_matrix(criteria):
+    n = len(criteria)
+    comparison_matrix = np.zeros((n, n))
+
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                comparison_matrix[i][j] = 1  # Set diagonal to 1
+            elif comparison_matrix[i][j] == 0:  # Check if element is already filled
+                key = f"select_{i}_{j}"  # Generate a unique key
+                st.subheader(f"Perbandingan antara '{criteria[i]}' dan '{criteria[j]}'")
+                decision = st.selectbox(f"Pilih kriteria yang lebih penting:", (f"{criteria[i]}", f"{criteria[j]}"), key=key)
+                if decision == criteria[i]:
+                    value = st.slider(f"Masukkan nilai perbandingan antara '{criteria[i]}' dan '{criteria[j]}' (1-9): ", 1, 9)
+                    if value < 1 or value > 9:
+                        st.warning("Nilai harus berada dalam rentang 1-9.")
+                        j -= 1
+                        continue
+                    comparison_matrix[i][j] = value
+                    comparison_matrix[j][i] = 1 / value
+                else:
+                    value = st.slider(f"Masukkan nilai perbandingan antara '{criteria[j]}' dan '{criteria[i]}' (1-9): ", 1, 9)
+                    if value < 1 or value > 9:
+                        st.warning("Nilai harus berada dalam rentang 1-9.")
+                        j -= 1
+                        continue
+                    comparison_matrix[j][i] = value
+                    comparison_matrix[i][j] = 1 / value
+
+    st.success("Input perbandingan kriteria telah selesai.")
+    return comparison_matrix
+
+criteria = ["Harga", "Kamera", "RAM", "ROM", "Baterai", "Processor"]
+
+alternatives = ["Openess", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"]
+
+
+# Fungsi untuk menghitung nilai CI
+def calculate_ci(eigenvalue, n):
+    return (eigenvalue - n) / (n - 1)
+
+# Fungsi untuk menghitung nilai CR
+def calculate_cr(ci, ri):
+    return ci / ri
+
+# Fungsi untuk menghitung eigenvalue dan eigenvector menggunakan metode eigen numpy
+def calculate_eigen(matrix):
+    eigenvalues, eigenvectors = np.linalg.eig(matrix)
+    max_eigenvalue = max(eigenvalues)
+    return max_eigenvalue, eigenvectors[:, np.argmax(eigenvalues)]
+
+# Fungsi untuk menghitung konsistensi ratio
+def calculate_consistency_ratio(matrix_df):
+    n = len(matrix_df)
+    matrix = matrix_df.to_numpy()
+    max_eigenvalue, eigenvector = calculate_eigen(matrix)
+    ci = calculate_ci(max_eigenvalue, n)
+
+    # Referensi indeks konsistensi acak (RI)
+    ri_dict = {1: 0, 2: 0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
+    ri = ri_dict[n]
+
+    cr = calculate_cr(ci, ri)
+
+    if cr <= 0.1:
+        st.write("Matriks perbandingan konsisten.")
+    else:
+        st.write("Matriks perbandingan tidak konsisten.")
+
+    return cr
+
+
+
 # Fungsi untuk menampilkan detail
 def show_detail():
     st.title('Detail')
@@ -62,7 +139,7 @@ def show_detail():
         Bobot distribusi yang digunakan dalam prediksi kepribadian:
 
         | Kriteria          | Openness | Conscientiousness | Extraversion | Agreeableness | Neuroticism |
-        |-------------------|----------|-------------------|-------------y-|---------------|-------------|
+        |-------------------|----------|-------------------|--------------|---------------|-------------|
         | Budget            | 0.2077   | 0.1676            | 0.2073       | 0.1990        | 0.2182      |
         | Camera            | 0.1846   | 0.2427            | 0.1635       | 0.1713        | 0.2379      |
         | RAM               | 0.2198   | 0.1821            | 0.1771       | 0.2186        | 0.2024      |
@@ -70,6 +147,7 @@ def show_detail():
         | Battery           | 0.2099   | 0.1882            | 0.1845       | 0.2214        | 0.1960      |
         | Processor         | 0.2003   | 0.1712            | 0.2039       | 0.2079        | 0.2166      |
     """)
+
 
     # Data bobot distribusi
     data = {
@@ -120,7 +198,7 @@ def consistency_ratio(priority_index, ahp_df):
 # Fungsi utama untuk aplikasi Streamlit
 def main():
     st.sidebar.title('Menu')
-    page = st.sidebar.selectbox("Choose a page", ["Beranda", "Prediction", "Definition", "Detail"])
+    page = st.sidebar.selectbox("Choose a page", ["Beranda", "Prediction AHP", "Definition", "Detail"])
     if page == "Beranda":
         st.markdown(
         """
@@ -164,116 +242,86 @@ def main():
         
         st.markdown("<p class='subtitle' style='text-align: center; font-size: 20px;'>By Kelompok 14</p>", unsafe_allow_html=True)
 
+    elif page == "Prediction AHP":
 
-    elif page == "Prediction":
+        # Comparison Matrix
         st.markdown(
-            f"<h1 style='text-align: center;'>Personality Trait Prediction</h1>"
-            "<h4 style='text-align: center;'>By Kelompok 14</h4>", 
+            f"<h1 style='text-align: center;'>AHP Prediction</h1>",
             unsafe_allow_html=True
         )
 
-        # Teks dari DataFrame
-        data_text = """
-                Budget  Camera     RAM     ROM  Battery  Processor
-        Openness      0.2073  0.2427  0.1771  0.1639  0.2099     0.1712
-        Conscientiousness  0.2182  0.1846  0.1821  0.1973  0.2214     0.2166
-        Extraversion  0.2077  0.1635  0.2024  0.2384  0.1845     0.2039
-        Agreeableness  0.1676  0.2379  0.2186  0.1716  0.2214     0.2003
-        Neuroticism  0.199  0.1713  0.1639  0.2288  0.196     0.2039
-        """
+        comparison_matrix = pd.DataFrame(create_comparison_matrix(criteria), index=criteria, columns=criteria)
 
-        # Membaca DataFrame dari teks
-        df = pd.read_csv(StringIO(data_text), delim_whitespace=True, index_col=0, skipinitialspace=True)
+        #st.write("\nPairwise Comparison Matrix:")
+        #st.write(comparison_matrix)
 
-        # Placeholder untuk input bobot relatif
-        placeholders = {
-            "budvscam": st.empty(),
-            "budvsram": st.empty(),
-            "budvsrom": st.empty(),
-            "budvsbat": st.empty(),
-            "budvsprc": st.empty(),
-            "camvsram": st.empty(),
-            "camvsrom": st.empty(),
-            "camvsbat": st.empty(),
-            "camvsprc": st.empty(),
-            "ramvsrom": st.empty(),
-            "ramvsbat": st.empty(),
-            "ramvsprc": st.empty(),
-            "romvsbat": st.empty(),
-            "romvsprc": st.empty(),
-            "batvsprc": st.empty()
-        }
+        # Normalized Pairwise Comparison Matrix
+        normalized_matrix = comparison_matrix.div(comparison_matrix.sum(axis=0), axis=1)
 
-        # Proses input bobot relatif
-        budvscam = placeholders["budvscam"].slider("Seberapa penting harga dibandingkan kamera?", min_value=1, max_value=9, value=5, format="%.0f", key="budvscam", help="1: Tidak Penting, 9: Sangat Penting")
-        budvsram = placeholders["budvsram"].slider("Seberapa penting harga dibandingkan RAM?", min_value=1, max_value=9, value=5, format="%.0f", key="budvsram")
-        budvsrom = placeholders["budvsrom"].slider("Seberapa penting harga dibandingkan ROM?", min_value=1, max_value=9, value=5, format="%.0f", key="budvsrom")
-        budvsbat = placeholders["budvsbat"].slider("Seberapa penting harga dibandingkan baterai?", min_value=1, max_value=9, value=5, format="%.0f", key="budvsbat")
-        budvsprc = placeholders["budvsprc"].slider("Seberapa penting harga dibandingkan processor?", min_value=1, max_value=9, value=5, format="%.0f", key="budvsprc")
-        camvsram = placeholders["camvsram"].slider("Seberapa penting kamera dibandingkan RAM?", min_value=1, max_value=9, value=5, format="%.0f", key="camvsram")
-        camvsrom = placeholders["camvsrom"].slider("Seberapa penting kamera dibandingkan ROM?", min_value=1, max_value=9, value=5, format="%.0f", key="camvsrom")
-        camvsbat = placeholders["camvsbat"].slider("Seberapa penting kamera dibandingkan batera?", min_value=1, max_value=9, value=5, format="%.0f", key="camvsbat")
-        camvsprc = placeholders["camvsprc"].slider("Seberapa penting kamera dibandingkan processor?", min_value=1, max_value=9, value=5, format="%.0f", key="camvsprc")
-        ramvsrom = placeholders["ramvsrom"].slider("Seberapa penting RAM dibandingkan ROM?", min_value=1, max_value=9, value=5, format="%.0f", key="ramvsrom")
-        ramvsbat = placeholders["ramvsbat"].slider("Seberapa penting RAM dibandingkan baterai?", min_value=1, max_value=9, value=5, format="%.0f", key="ramvsbat")
-        ramvsprc = placeholders["ramvsprc"].slider("Seberapa penting RAM dibandingkan processor?", min_value=1, max_value=9, value=5, format="%.0f", key="ramvsprc")
-        romvsbat = placeholders["romvsbat"].slider("Seberapa penting ROM dibandingkan baterai?", min_value=1, max_value=9, value=5, format="%.0f", key="romvsbat")
-        romvsprc = placeholders["romvsprc"].slider("Seberapa penting ROM dibandingkan processor?", min_value=1, max_value=9, value=5, format="%.0f", key="romvsprc")
-        batvsprc = placeholders["batvsprc"].slider("Seberapa penting baterai dibandingkan processor?", min_value=1, max_value=9, value=5, format="%.0f", key="batvsprc")
+        #st.write("\nNormalized Pairwise Comparison Matrix:")
+        #st.write(normalized_matrix)
 
-        # Proses AHP saat tombol ditekan
-        if st.button('Proses AHP'):
-            data1 = {
-                "Kriteria": ["Budget", "Camera", "RAM", "ROM", "Battery", "Processor"],
-                "Budget": [1, 1/budvscam, 1/budvsram, 1/budvsrom, 1/budvsbat, 1/budvsprc],
-                "Camera": [budvscam, 1, 1/camvsram, 1/camvsrom, 1/camvsbat, 1/camvsprc],
-                "RAM": [budvsram, camvsram, 1, 1/ramvsrom, 1/ramvsbat, 1/ramvsprc],
-                "ROM": [budvsrom, camvsrom, ramvsrom, 1, 1/romvsbat, 1/romvsprc],
-                "Battery": [budvsbat, camvsbat, ramvsbat, romvsbat, 1, 1/batvsprc],
-                "Processor": [budvsprc, camvsprc, ramvsprc, romvsprc, batvsprc, 1]
-            }
+        # Priority Vector
+        priority_vector = pd.DataFrame(normalized_matrix.mean(axis=1))
+        
 
-            # Membuat DataFrame hasil
-            df1 = pd.DataFrame(data1)
-            ahp_att = ahp_attributes(df1)
-            ahp_att1 = ahp_att.rename(columns={0: "Budget", 1: "Camera", 2: "RAM", 3: "ROM", 4: "Battery", 5: "Processor"})
-            hasil = np.dot(df.values, ahp_att1.values)
-            dfhasil = pd.DataFrame({
-                "Personality": df.index,
-                "Hasil": hasil.flatten()
-            })
+        # Ranking of Priorities
+        #priority_rank = pd.DataFrame({'Priority Rank': priority_vector.rank(ascending=False).iloc[:,0].tolist()})
 
-            max_personality_name = dfhasil.loc[dfhasil["Hasil"].idxmax(), "Personality"]
+        #st.write("\nRanking of Priorities:")
+        #st.write(priority_rank)
 
-            # Consistency Ratio   
-            #st.write(hasil_cr)
-            # Piechart hasil
-            st.header('Pie Chart Hasil')
-            fig = px.pie(dfhasil, values='Hasil', names='Personality', color_discrete_sequence=['#E63946', '#F1FAEE', '#A8DADC', '#457B9D', '#1D3557'])
-            st.plotly_chart(fig)
+        # Hitung rasio konsistensi
+        st.title('Consistency Ratio')
+        consistency_ratio = calculate_consistency_ratio(comparison_matrix)
+        st.write("\nConsistency Ratio (CR):", consistency_ratio)
 
-            # Menampilkan hasil
-            st.markdown("""
-                <style>
-                    /* Animasi gradien merah */
-                    @keyframes colorchange {
-                        0% {color: #FF0000;}
-                        25% {color: #FF3333;}
-                        50% {color: #FF6666;}
-                        75% {color: #FF9999;}
-                        100% {color: #FFCCCC;}
-                    }
 
-                    /* Menerapkan animasi ke teks */
-                    .animated-text {
-                        animation: colorchange 5s infinite;
-                    }
-                </style>
-            """, unsafe_allow_html=True)
+        # Priority Percentage of Personality Traits for Each Criteria
+        percent = [
+            [0.2073, 0.2427, 0.1771, 0.1639, 0.2099, 0.1712],
+            [0.2182, 0.1846, 0.1821, 0.1973, 0.2214, 0.2166],
+            [0.2077, 0.1635, 0.2024, 0.2384, 0.1845, 0.2039],
+            [0.1676, 0.2379, 0.2186, 0.1716, 0.2214, 0.2003],
+            [0.1990, 0.1713, 0.1639, 0.2288, 0.1960, 0.2039]
+        ]
 
-            # Menampilkan hasil selected personality dengan animasi gradien merah
-            selected_personality = max_personality_name  # Ganti dengan hasil selected personality Anda
-            st.markdown(f"<h1 style='text-align: center;'>Personality yang terpilih: <span class='animated-text'>{selected_personality}</span></h1>", unsafe_allow_html=True)
+        alt_percent = pd.DataFrame(percent, columns=criteria, index=alternatives)
+        # Mengubah nama kolom indeks menjadi "Personality"
+        alt_percent = alt_percent.rename_axis("Personality")
+        priority_vector.columns = ['Priority']
+
+        #st.title('Priority Percentage of Personality Traits for Each Criteria')
+        #st.write(alt_percent)
+
+        # Ranking Alternatives
+        result = alt_percent.dot(priority_vector)
+        st.title('Ranking of Alternatives')
+        st.write(result)
+         # Tampilkan personality dengan ranking tertinggi
+        max_personality = result.idxmax()[0]
+        st.markdown(f"""
+        <h1 style='text-align: center; font-size: 48px;'>Personality yang terpilih: <span class='animated-text'>{max_personality}</span></h1>
+    """, unsafe_allow_html=True)
+
+        # Tambahkan CSS untuk animasi
+        st.markdown("""
+            <style>
+                /* Animasi gradien merah */
+                @keyframes colorchange {
+                    0% {color: #FF0000;}
+                    25% {color: #FF3333;}
+                    50% {color: #FF6666;}
+                    75% {color: #FF9999;}
+                    100% {color: #FFCCCC;}
+                }
+
+                /* Menerapkan animasi ke teks */
+                .animated-text {
+                    animation: colorchange 5s infinite;
+                }
+            </style>
+        """, unsafe_allow_html=True)
 
     # Page Definition
     elif page == "Definition":
